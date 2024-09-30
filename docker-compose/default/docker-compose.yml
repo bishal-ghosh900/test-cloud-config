@@ -1,0 +1,45 @@
+services:
+  rabbit:
+    container_name: rabbit-mq
+    image: rabbitmq:3.13-management
+    ports:
+      - 5672:5672
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      retries: 5
+      interval: 5s
+      timeout: 5s
+      start_period: 5s
+
+  configserver:
+    container_name: test1-config
+    image: "ghoshbishal/test1-config:latest"
+    ports:
+      - 8070:8070
+    healthcheck:
+      test: curl http://configserver:8070/actuator/health/readiness | grep "UP" || exit 1
+      retries: 5
+      interval: 5s
+      timeout: 5s
+      start_period: 5s
+    extends:
+      file: common-config.yml
+      service: service-common-config
+    depends_on:
+      rabbit:
+        condition: service_healthy
+
+  test1:
+    container_name: "test1"
+    image: "ghoshbishal/test1:latest"
+    ports:
+      - 8080:8080
+    environment:
+      SPRING_PROFILES_ACTIVE: default
+      SPRING_CONFIG_IMPORT: configserver:http://configserver:8070
+    extends:
+      file: common-config.yml
+      service: service-common-config
+    depends_on:
+      configserver:
+        condition: service_healthy
